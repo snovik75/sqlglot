@@ -323,7 +323,7 @@ class Scope:
     @property
     def selected_sources(
         self,
-    ) -> dict[str, tuple[exp.Table | exp.Select, exp.Table | exp.Scope]]:
+    ) -> dict[str, tuple[exp.Table | exp.Select, exp.Table | Scope]]:
         """
         Mapping of source name into a tuple of nodes and its source that are actually selected from in this scope.
 
@@ -868,7 +868,7 @@ def walk_in_scope(expression, bfs=True, prune=None):
             continue
 
         if (
-            isinstance(node, exp.CTE) 
+            isinstance(node, exp.CTE)
             or (
                 isinstance(node.parent, (exp.From, exp.Join, exp.Subquery))
                 and _is_derived_table(node)

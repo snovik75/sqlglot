@@ -98,7 +98,7 @@ def pushdown(condition, sources, scope_ref_count, dialect, join_index=None):
     condition = condition.replace(simplify(condition, dialect=dialect))
     cnf_like = normalized(condition) or not normalized(condition, dnf=True)
 
-    predicates = (
+    predicates = list(
         condition.flatten()
         if isinstance(condition, exp.And if cnf_like else exp.Or)
         else [condition]
