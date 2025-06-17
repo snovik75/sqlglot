@@ -31,6 +31,7 @@ from sqlglot.dialects.dialect import (
 )
 from sqlglot.generator import unsupported_args
 from sqlglot.helper import flatten, is_float, is_int, seq_get
+from sqlglot.optimizer.scope import find_all_in_scope
 from sqlglot.tokens import TokenType
 
 if t.TYPE_CHECKING:
@@ -331,6 +332,34 @@ def _json_extract_value_array_sql(
     transform_lambda = exp.Lambda(expressions=[ident], this=this)
 
     return self.func("TRANSFORM", json_extract, transform_lambda)
+
+
+def _eliminate_dot_variant_lookup(expression: exp.Expression) -> exp.Expression:
+    if isinstance(expression, exp.Select):
+        # This transformation is used to facilitate transpilation of BigQuery `UNNEST` operations
+        # to Snowflake. It should not affect roundtrip because `Unnest` nodes cannot be produced
+        # by Snowflake's parser.
+        #
+        # Additionally, at the time of writing this, BigQuery is the only dialect that produces a
+        # `TableAlias` node that only fills `columns` and not `this`, due to `UNNEST_COLUMN_ONLY`.
+        unnest_aliases = set()
+        for unnest in find_all_in_scope(expression, exp.Unnest):
+            unnest_alias = unnest.args.get("alias")
+            if (
+                isinstance(unnest_alias, exp.TableAlias)
+                and not unnest_alias.this
+                and len(unnest_alias.columns) == 1
+            ):
+                unnest_aliases.add(unnest_alias.columns[0].name)
+
+        if unnest_aliases:
+            for c in find_all_in_scope(expression, exp.Column):
+                if c.table in unnest_aliases:
+                    bracket_lhs = c.args["table"]
+                    bracket_rhs = exp.Literal.string(c.name)
+                    c.replace(exp.Bracket(this=bracket_lhs, expressions=[bracket_rhs]))
+
+    return expression
 
 
 class Snowflake(Dialect):
@@ -863,8 +892,14 @@ class Snowflake(Dialect):
                 properties=self._parse_properties(),
             )
 
-        def _parse_get(self) -> exp.Get | exp.Command:
+        def _parse_get(self) -> t.Optional[exp.Expression]:
             start = self._prev
+
+            # If we detect GET( then we need to parse a function, not a statement
+            if self._match(TokenType.L_PAREN):
+                self._retreat(self._index - 2)
+                return self._parse_expression()
+
             target = self._parse_location_path()
 
             # Parse as command if unquoted file path
@@ -1090,6 +1125,7 @@ class Snowflake(Dialect):
                     transforms.explode_projection_to_unnest(),
                     transforms.eliminate_semi_and_anti_joins,
                     _transform_generate_date_array,
+                    _eliminate_dot_variant_lookup,
                 ]
             ),
             exp.SHA: rename_func("SHA1"),
@@ -1100,6 +1136,7 @@ class Snowflake(Dialect):
                 self, e, func_name="CHARINDEX", supports_position=True
             ),
             exp.StrToDate: lambda self, e: self.func("DATE", e.this, self.format_time(e)),
+            exp.StringToArray: rename_func("STRTOK_TO_ARRAY"),
             exp.Stuff: rename_func("INSERT"),
             exp.StPoint: rename_func("ST_MAKEPOINT"),
             exp.TimeAdd: date_delta_sql("TIMEADD"),
@@ -1307,7 +1344,14 @@ class Snowflake(Dialect):
             start = f" START {start}" if start else ""
             increment = expression.args.get("increment")
             increment = f" INCREMENT {increment}" if increment else ""
-            return f"AUTOINCREMENT{start}{increment}"
+
+            order = expression.args.get("order")
+            if order is not None:
+                order_clause = " ORDER" if order else " NOORDER"
+            else:
+                order_clause = ""
+
+            return f"AUTOINCREMENT{start}{increment}{order_clause}"
 
         def cluster_sql(self, expression: exp.Cluster) -> str:
             return f"CLUSTER BY ({self.expressions(expression, flat=True)})"

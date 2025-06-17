@@ -51,8 +51,8 @@ class _Expression(type):
     def __new__(cls, clsname, bases, attrs):
         klass = super().__new__(cls, clsname, bases, attrs)
 
-        # When an Expression class is created, its key is automatically set to be
-        # the lowercase version of the class' name.
+        # When an Expression class is created, its key is automatically set
+        # to be the lowercase version of the class' name.
         klass.key = clsname.lower()
 
         # This is so that docstrings are not inherited in pdoc
@@ -1947,6 +1947,7 @@ class GeneratedAsIdentityColumnConstraint(ColumnConstraintKind):
         "minvalue": False,
         "maxvalue": False,
         "cycle": False,
+        "order": False,
     }
 
 
@@ -5593,7 +5594,7 @@ class String(Func):
 
 
 class StringToArray(Func):
-    arg_types = {"this": True, "expression": True, "null": False}
+    arg_types = {"this": True, "expression": False, "null": False}
     _sql_names = ["STRING_TO_ARRAY", "SPLIT_BY_STRING", "STRTOK_TO_ARRAY"]
 
 
@@ -7042,6 +7043,12 @@ class NextValueFor(Func):
 # select 1; -- my comment
 class Semicolon(Expression):
     arg_types = {}
+
+
+# BigQuery allows SELECT t FROM t and treats the projection as a struct value. This expression
+# type is intended to be constructed by qualify so that we can properly annotate its type later
+class TableColumn(Expression):
+    pass
 
 
 def _norm_arg(arg):
