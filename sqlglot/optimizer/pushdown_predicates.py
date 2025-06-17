@@ -188,8 +188,8 @@ def pushdown_dnf(predicates, sources, scope_ref_count):
 
 def nodes_for_predicate(
     predicate: exp.Predicate,
-    # sources: dict[str, tuple[exp.Table | exp.Select, exp.Table | Scope]],
-    sources,
+    sources: dict[str, tuple[exp.Table | exp.Select, exp.Table | Scope]],
+    #sources,
     scope_ref_count,
 ) -> dict[str, exp.Table | exp.Select]:
     nodes = {}
