@@ -192,7 +192,7 @@ def nodes_for_predicate(
     predicate: exp.Predicate,
     sources: t.Dict[str, t.Tuple[exp.Table | exp.Select, exp.Table | Scope]],
     scope_ref_count,
-) -> dict[str, exp.Table | exp.Select]:
+) -> t.Dict[str, exp.Table | exp.Select]:
     nodes = {}
 
     # search parent WHERE or JOIN, and check if it is WHERE
