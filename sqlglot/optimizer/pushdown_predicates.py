@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from sqlglot import exp
 from sqlglot.optimizer.normalize import normalized
 from sqlglot.optimizer.scope import build_scope, find_in_scope
@@ -6,7 +8,7 @@ from sqlglot import Dialect
 import typing as t
 
 if t.TYPE_CHECKING:
-    pass
+    from sqlglot.optimizer.scope import Scope
 
 
 def pushdown_predicates(expression, dialect=None):
@@ -188,8 +190,7 @@ def pushdown_dnf(predicates, sources, scope_ref_count):
 
 def nodes_for_predicate(
     predicate: exp.Predicate,
-    sources: dict[str, tuple[exp.Table | exp.Select, exp.Table | Scope]],
-    #sources,
+    sources: t.Dict[str, t.Tuple[exp.Table | exp.Select, exp.Table | Scope]],
     scope_ref_count,
 ) -> dict[str, exp.Table | exp.Select]:
     nodes = {}
